@@ -151,7 +151,7 @@ namespace DependencyFileCreator {
         private string ShowBrowseRootDirDialog(string rootDir) {
             FolderBrowserDialog fbd = new FolderBrowserDialog() {
                 Description = "",
-                SelectedPath = @"C:\Users\scuba156\Documents\Source\ColonySearch\ColonySearch\Output\ColonySearch",//rootDir,
+                SelectedPath = rootDir,
                 ShowNewFolderButton = false
             };
             if (fbd.ShowDialog() == DialogResult.OK) {
