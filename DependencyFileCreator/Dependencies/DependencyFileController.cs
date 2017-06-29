@@ -2,15 +2,19 @@
 using DependencyChecker.Dependencies.SupportedFiles;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.IO;
 using System.Xml.Linq;
 
 namespace DependencyFileCreator.Dependencies {
-    static class DependencyFileController {
+
+    internal static class DependencyFileController {
 
         public static List<DependencyMetaData> LoadFromFile(string rootDir) {
-            return DependenciesFile.TryParseFile(rootDir).Dependencies;
+            DependenciesFile file = DependenciesFile.TryParseFile(rootDir);
+            if (file == null) {
+                return new List<DependencyMetaData>();
+            }
+            return file.Dependencies;
         }
 
         public static void SaveToFile(string filePath, List<DependencyMetaData> dependencies) {
@@ -18,16 +22,22 @@ namespace DependencyFileCreator.Dependencies {
             XElement rootElement = new XElement("Dependencies");
 
             foreach (var dependency in dependencies) {
-                XElement dependencyElement = new XElement("Dependency", 
+                string verString;
+                if (dependency.RequiredVersion == new Version()) {
+                    verString = string.Empty;
+                } else {
+                    verString = dependency.RequiredVersion.ToString();
+                }
+                XElement dependencyElement = new XElement("Dependency",
                     new XElement("Identifier", dependency.Identifier),
                     new XElement("SteamID", dependency.SteamID),
-                    new XElement("RequiredVersion", dependency.RequiredVersion)
+                    new XElement("RequiredVersion", verString)
                     );
                 rootElement.Add(dependencyElement);
             }
 
             doc.Add(rootElement);
-            doc.Save(filePath);
+            doc.Save(Path.Combine(filePath, DependenciesFile.RelativePath));
         }
     }
 }

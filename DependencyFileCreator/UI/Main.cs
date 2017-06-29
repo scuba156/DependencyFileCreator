@@ -1,85 +1,51 @@
 ﻿using DependencyChecker.Dependencies;
+using DependencyChecker.Dependencies.SupportedFiles;
 using DependencyFileCreator.Dependencies;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
 using System.IO;
-using System.Linq;
 using System.Reflection;
-using System.Text;
 using System.Windows.Forms;
 
 namespace DependencyFileCreator {
-    public partial class Main : Form {
-        public string PathName { get; private set; }
-        public static bool IsDirty { get; private set; }
-        public string DependencyFilePath { get; private set; }
 
+    public partial class Main : Form {
         public Main() {
             InitializeComponent();
             SetTitle();
             SetButtonsEnabled(false);
+            IsDirty = false;
             //TODO: Load last path from cache
         }
 
-        private void SetTitle() {
-            Version currentVersion = Assembly.GetExecutingAssembly().GetName().Version;
-            int count = 2;
-            if (currentVersion.Build != 0) {
-                count = 3;
-            }
-            this.Text = "Dependency File Creator v" + currentVersion.ToString(count);
-        }
-
-        private string ShowBrowseRootDirDialog(string aboutDirectory) {
-            FolderBrowserDialog fbd = new FolderBrowserDialog() {
-                Description = "",
-                SelectedPath = aboutDirectory,
-                ShowNewFolderButton = false
-            };
-            if (fbd.ShowDialog() == DialogResult.OK) {
-                return fbd.SelectedPath;
-            }
-            return aboutDirectory;
-        }
-
-        private DialogResult ShowSaveBeforeClosingDialog() {
-            string message = "Would you like to save your changes before closing?";
-            string caption = "Save Changes?";
-            MessageBoxButtons buttons = MessageBoxButtons.YesNoCancel;
-            return MessageBox.Show(message, caption, buttons);
-        }
-
+        public static bool IsDirty { get; private set; }
+        public string PathName { get; private set; }
+        public string SelectedRootDir { get; private set; }
         private void btnBrowse_Click(object sender, EventArgs e) {
             txtRootDir.Text = ShowBrowseRootDirDialog(txtRootDir.Text);
 
-            DependencyFilePath = Path.Combine(txtRootDir.Text, DependencyChecker.Dependencies.SupportedFiles.DependenciesFile.RelativePath);
+            if (Directory.Exists(Path.Combine(txtRootDir.Text, DependenciesFile.Dir))) {
+                SelectedRootDir = txtRootDir.Text;
 
-            if (File.Exists(DependencyFilePath)) {
-                ReloadFile();
+                if (File.Exists(Path.Combine(txtRootDir.Text, DependenciesFile.RelativePath))) {
+                    ReloadFile();
+                }
+            } else {
+                SetMessage("Selected directory does not contain an 'about' folder");
             }
-
             SetButtonsEnabled(true);
-        }
-
-        private void btnSave_Click(object sender, EventArgs e) {
-            SaveFile();
         }
 
         private void btnCancel_Click(object sender, EventArgs e) {
             this.Close();
         }
 
-        private void SetMessage(string message) {
-            lblStatusMessage.Text = message;
-            tmrMessageVisable.Start();
+        private void btnReset_Click(object sender, EventArgs e) {
+            ReloadFile();
         }
 
-        private void SetButtonsEnabled(bool enabled) {
-            this.btnSave.Enabled = enabled;
-            this.btnReset.Enabled = enabled;
+        private void btnSave_Click(object sender, EventArgs e) {
+            SaveFile();
         }
 
         private void grdViewDependencies_CellValidating(object sender, DataGridViewCellValidatingEventArgs e) {
@@ -108,23 +74,36 @@ namespace DependencyFileCreator {
             btnSave.Enabled = true;
         }
 
-        private void tmrMessageVisable_Tick(object sender, EventArgs e) {
-            lblStatusMessage.Text = string.Empty;
+        private void grdViewDependencies_CellValueChanged(object sender, DataGridViewCellEventArgs e) {
+            IsDirty = true;
+        }
+
+        private void Main_FormClosing(object sender, FormClosingEventArgs e) {
+            if (IsDirty) {
+                DialogResult result = ShowSaveBeforeClosingDialog();
+
+                switch (result) {
+                    case DialogResult.Cancel:
+                        e.Cancel = true;
+                        break;
+
+                    case DialogResult.Yes:
+                        SaveFile();
+                        break;
+                }
+            }
         }
 
         private void ReloadFile() {
             grdViewDependencies.Rows.Clear();
-            List<DependencyMetaData> saveData = DependencyFileController.LoadFromFile(DependencyFilePath);
+            List<DependencyMetaData> saveData = DependencyFileController.LoadFromFile(SelectedRootDir);
 
             foreach (DependencyMetaData dependency in saveData) {
                 DataGridViewRow row = new DataGridViewRow();
-                row.CreateCells(grdViewDependencies);
-                row.Cells["IdentifierColumn"].Value = dependency.Identifier;
-                row.Cells["SteamIDColumn"].Value = dependency.SteamID;
-                row.Cells["RequiredVersionColumn"].Value = dependency.RequiredVersion;
-
+                row.CreateCells(grdViewDependencies, dependency.Identifier, dependency.SteamID, dependency.RequiredVersion);
                 grdViewDependencies.Rows.Add(row);
             }
+            IsDirty = false;
         }
 
         private void SaveFile() {
@@ -140,33 +119,55 @@ namespace DependencyFileCreator {
                     steamID = gridRow.Cells["SteamIDColumn"].Value.ToString();
                 }
                 Version version = new Version();
-                if (gridRow.Cells["RequiredVersionColumn"].Value !=null) {
+                if (gridRow.Cells["RequiredVersionColumn"].Value != null) {
                     version = new Version(gridRow.Cells["RequiredVersionColumn"].Value.ToString());
                 }
                 saveData.Add(new DependencyMetaData(identifier.ToString(), steamID, version));
             }
 
-            DependencyFileController.SaveToFile(DependencyFilePath, saveData);
+            DependencyFileController.SaveToFile(SelectedRootDir, saveData);
             SetMessage("Saved");
         }
 
-        private void btnReset_Click(object sender, EventArgs e) {
-            ReloadFile();
+        private void SetButtonsEnabled(bool enabled) {
+            this.btnSave.Enabled = enabled;
+            this.btnReset.Enabled = enabled;
         }
 
-        private void Main_FormClosing(object sender, FormClosingEventArgs e) {
-            if (IsDirty) {
-                DialogResult result = ShowSaveBeforeClosingDialog();
+        private void SetMessage(string message) {
+            lblStatusMessage.Text = message;
+            tmrMessageVisable.Start();
+        }
 
-                switch (result) {
-                    case DialogResult.Cancel:
-                        e.Cancel = true;
-                        break;
-                    case DialogResult.Yes:
-                        SaveFile();
-                        break;
-                }
+        private void SetTitle() {
+            Version currentVersion = Assembly.GetExecutingAssembly().GetName().Version;
+            int count = 2;
+            if (currentVersion.Build != 0) {
+                count = 3;
             }
+            this.Text = "Dependency File Creator v" + currentVersion.ToString(count);
+        }
+
+        private string ShowBrowseRootDirDialog(string rootDir) {
+            FolderBrowserDialog fbd = new FolderBrowserDialog() {
+                Description = "",
+                SelectedPath = @"C:\Users\scuba156\Documents\Source\ColonySearch\ColonySearch\Output\ColonySearch",//rootDir,
+                ShowNewFolderButton = false
+            };
+            if (fbd.ShowDialog() == DialogResult.OK) {
+                return fbd.SelectedPath;
+            }
+            return rootDir;
+        }
+
+        private DialogResult ShowSaveBeforeClosingDialog() {
+            string message = "Would you like to save your changes before closing?";
+            string caption = "Save Changes?";
+            MessageBoxButtons buttons = MessageBoxButtons.YesNoCancel;
+            return MessageBox.Show(message, caption, buttons);
+        }
+        private void tmrMessageVisable_Tick(object sender, EventArgs e) {
+            lblStatusMessage.Text = string.Empty;
         }
     }
 }

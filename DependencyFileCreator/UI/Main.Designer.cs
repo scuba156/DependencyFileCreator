@@ -93,6 +93,7 @@
             this.grdViewDependencies.Size = new System.Drawing.Size(315, 188);
             this.grdViewDependencies.TabIndex = 4;
             this.grdViewDependencies.CellValidating += new System.Windows.Forms.DataGridViewCellValidatingEventHandler(this.grdViewDependencies_CellValidating);
+            this.grdViewDependencies.CellValueChanged += new System.Windows.Forms.DataGridViewCellEventHandler(this.grdViewDependencies_CellValueChanged);
             // 
             // IdentifierColumn
             // 
