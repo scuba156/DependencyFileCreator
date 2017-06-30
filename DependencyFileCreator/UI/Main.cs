@@ -19,44 +19,40 @@ namespace DependencyFileCreator {
         }
 
         public static bool IsDirty { get; private set; }
-        public string PathName { get; private set; }
         public string SelectedRootDir { get; private set; }
-        private void btnBrowse_Click(object sender, EventArgs e) {
-            txtRootDir.Text = ShowBrowseRootDirDialog(txtRootDir.Text);
+        private const int ClearStatusMessageTimerCount = 3000;
 
-            if (Directory.Exists(Path.Combine(txtRootDir.Text, DependenciesFile.Dir))) {
-                SelectedRootDir = txtRootDir.Text;
+        private void BtnBrowse_Click(object sender, EventArgs e) {
+            txtAboutDir.Text = ShowBrowseAboutDirDialog(txtAboutDir.Text);
 
-                if (File.Exists(Path.Combine(txtRootDir.Text, DependenciesFile.RelativePath))) {
-                    ReloadFile();
-                }
-            } else {
-                SetMessage("Selected directory does not contain an 'about' folder");
+            SelectedRootDir = Directory.GetParent(txtAboutDir.Text).FullName;
+
+            if (File.Exists(Path.Combine(txtAboutDir.Text, DependenciesFile.FileName))) {
+                ReloadFile();
             }
+
             SetButtonsEnabled(true);
         }
 
-        private void btnCancel_Click(object sender, EventArgs e) {
-            this.Close();
-        }
+        private void BtnReset_Click(object sender, EventArgs e) {
+            if (IsDirty) {
 
-        private void btnReset_Click(object sender, EventArgs e) {
+            }
             ReloadFile();
         }
 
-        private void btnSave_Click(object sender, EventArgs e) {
+        private void BtnSave_Click(object sender, EventArgs e) {
             SaveFile();
         }
 
-        private void grdViewDependencies_CellValidating(object sender, DataGridViewCellValidatingEventArgs e) {
-            if (e.ColumnIndex == grdViewDependencies.Columns["RequiredVersionColumn"].Index && e.FormattedValue.ToString() != string.Empty) { //Required Version Column
-                btnSave.Enabled = false;
+        private void GrdViewDependencies_CellValidating(object sender, DataGridViewCellValidatingEventArgs e) {
+            if (e.ColumnIndex == GrdViewDependencies.Columns["RequiredVersionColumn"].Index && e.FormattedValue.ToString() != string.Empty) { //Required Version Column
+                BtnSave.Enabled = false;
                 string[] values = e.FormattedValue.ToString().Split('.');
                 int count = 0;
                 foreach (var value in values) {
                     count++;
-                    int num;
-                    if (!int.TryParse(value, out num)) {
+                    if (!int.TryParse(value, out int num)) {
                         e.Cancel = true;
                         SetMessage(value + " is not a valid number");
                         return;
@@ -71,10 +67,10 @@ namespace DependencyFileCreator {
                     }
                 }
             }
-            btnSave.Enabled = true;
+            BtnSave.Enabled = true;
         }
 
-        private void grdViewDependencies_CellValueChanged(object sender, DataGridViewCellEventArgs e) {
+        private void GrdViewDependencies_CellValueChanged(object sender, DataGridViewCellEventArgs e) {
             IsDirty = true;
         }
 
@@ -95,21 +91,27 @@ namespace DependencyFileCreator {
         }
 
         private void ReloadFile() {
-            grdViewDependencies.Rows.Clear();
-            List<DependencyMetaData> saveData = DependencyFileController.LoadFromFile(SelectedRootDir);
+            GrdViewDependencies.Rows.Clear();
 
-            foreach (DependencyMetaData dependency in saveData) {
-                DataGridViewRow row = new DataGridViewRow();
-                row.CreateCells(grdViewDependencies, dependency.Identifier, dependency.SteamID, dependency.RequiredVersion);
-                grdViewDependencies.Rows.Add(row);
+            try {
+                List<DependencyMetaData> saveData = DependencyFileController.LoadFromFile(SelectedRootDir);
+
+                foreach (DependencyMetaData dependency in saveData) {
+                    DataGridViewRow row = new DataGridViewRow();
+                    row.CreateCells(GrdViewDependencies, dependency.Identifier, dependency.SteamID, dependency.RequiredVersion);
+                    GrdViewDependencies.Rows.Add(row);
+                }
+                IsDirty = false;
+            } catch (Exception e) {
+                SetMessage("failed to open: " + e.Message);
             }
-            IsDirty = false;
+
         }
 
         private void SaveFile() {
             List<DependencyMetaData> saveData = new List<DependencyMetaData>();
 
-            foreach (DataGridViewRow gridRow in grdViewDependencies.Rows) {
+            foreach (DataGridViewRow gridRow in GrdViewDependencies.Rows) {
                 var identifier = gridRow.Cells["IdentifierColumn"].Value;
                 if (identifier == null) {
                     continue;
@@ -125,18 +127,19 @@ namespace DependencyFileCreator {
                 saveData.Add(new DependencyMetaData(identifier.ToString(), steamID, version));
             }
 
-            DependencyFileController.SaveToFile(SelectedRootDir, saveData);
+            DependencyFileController.SaveToFile(Path.Combine(SelectedRootDir, DependenciesFile.Dir), saveData);
             SetMessage("Saved");
         }
 
         private void SetButtonsEnabled(bool enabled) {
-            this.btnSave.Enabled = enabled;
-            this.btnReset.Enabled = enabled;
+            this.BtnSave.Enabled = enabled;
+            this.BtnReset.Enabled = enabled;
         }
 
         private void SetMessage(string message) {
             lblStatusMessage.Text = message;
-            tmrMessageVisable.Start();
+            TimerClearStatusMessage.Stop();
+            TimerClearStatusMessage.Start();
         }
 
         private void SetTitle() {
@@ -146,18 +149,21 @@ namespace DependencyFileCreator {
                 count = 3;
             }
             this.Text = "Dependency File Creator v" + currentVersion.ToString(count);
+#if DEBUG
+            this.Text += " [DEBUG]";
+#endif
         }
 
-        private string ShowBrowseRootDirDialog(string rootDir) {
+        private string ShowBrowseAboutDirDialog(string aboutDir) {
             FolderBrowserDialog fbd = new FolderBrowserDialog() {
-                Description = "",
-                SelectedPath = rootDir,
+                Description = "Select your mods 'about' folder",
+                SelectedPath = aboutDir,
                 ShowNewFolderButton = false
             };
             if (fbd.ShowDialog() == DialogResult.OK) {
                 return fbd.SelectedPath;
             }
-            return rootDir;
+            return aboutDir;
         }
 
         private DialogResult ShowSaveBeforeClosingDialog() {
@@ -166,7 +172,8 @@ namespace DependencyFileCreator {
             MessageBoxButtons buttons = MessageBoxButtons.YesNoCancel;
             return MessageBox.Show(message, caption, buttons);
         }
-        private void tmrMessageVisable_Tick(object sender, EventArgs e) {
+
+        private void TimerClearStatusMessage_Tick(object sender, EventArgs e) {
             lblStatusMessage.Text = string.Empty;
         }
     }

@@ -17,7 +17,7 @@ namespace DependencyFileCreator.Dependencies {
             return file.Dependencies;
         }
 
-        public static void SaveToFile(string filePath, List<DependencyMetaData> dependencies) {
+        public static void SaveToFile(string dest, List<DependencyMetaData> dependencies) {
             XDocument doc = new XDocument();
             XElement rootElement = new XElement("Dependencies");
 
@@ -37,7 +37,7 @@ namespace DependencyFileCreator.Dependencies {
             }
 
             doc.Add(rootElement);
-            doc.Save(Path.Combine(filePath, DependenciesFile.RelativePath));
+            doc.Save(Path.Combine(dest, DependenciesFile.FileName));
         }
     }
 }
