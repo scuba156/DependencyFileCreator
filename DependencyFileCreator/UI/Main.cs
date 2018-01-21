@@ -127,7 +127,7 @@ namespace DependencyFileCreator {
                 saveData.Add(new DependencyMetaData(identifier.ToString(), steamID, version));
             }
 
-            DependencyFileController.SaveToFile(Path.Combine(SelectedRootDir, DependenciesFile.Dir), saveData);
+            DependencyFileController.SaveToFile(Path.Combine(SelectedRootDir, DependenciesFile.Directory), saveData);
             SetMessage("Saved");
         }
 
